@@ -14,7 +14,8 @@ type State struct {
 	Balances  map[Account]uint
 	txMempool []Tx
 
-	dbFile *os.File
+	dbFile    *os.File
+	cacheFile *os.File
 }
 
 // it is contstructed using the initial balances from the genesis.json file
@@ -36,17 +37,23 @@ func NewStateFromDisk() (*State, error) {
 		balances[account] = balance
 	}
 
-	f, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "tx.db"), os.O_APPEND|os.O_RDWR, 0600)
+	dbf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "tx.db"), os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(f)
+	cf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "state.json"), os.O_RDWR, 0600)
+	if err != nil {
+		return nil, err
+	}
+
+	scanner := bufio.NewScanner(dbf)
 
 	state := &State{
 		Balances:  balances,
 		txMempool: make([]Tx, 0),
-		dbFile:    f,
+		dbFile:    dbf,
+		cacheFile: cf,
 	}
 
 	for scanner.Scan() {
@@ -94,6 +101,16 @@ func (state *State) Persist() error {
 			return err
 		}
 		state.txMempool = state.txMempool[1:]
+	}
+
+	balancesJson, err := json.Marshal(state.Balances)
+	if err != nil {
+		return err
+	}
+
+	_, err = state.cacheFile.Write(balancesJson)
+	if err != nil {
+		return err
 	}
 
 	return nil
