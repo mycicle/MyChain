@@ -25,7 +25,7 @@ func NewStateFromDisk() (*State, error) {
 		return nil, err
 	}
 
-	genFilePath := filepath.Join(cwd, "..", "database", "genesis.json")
+	genFilePath := filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "genesis.json")
 	gen, err := loadGenesis(genFilePath)
 	if err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func NewStateFromDisk() (*State, error) {
 		balances[account] = balance
 	}
 
-	f, err := os.OpenFile(filepath.Join(cwd, "..", "database", "genesis.json"), os.O_APPEND|os.O_RDWR, 0600)
+	f, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "tx.db"), os.O_APPEND|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,10 @@ func NewStateFromDisk() (*State, error) {
 		}
 
 		var tx Tx
-		json.Unmarshal(scanner.Bytes(), &tx)
+		err = json.Unmarshal(scanner.Bytes(), &tx)
+		if err != nil {
+			return nil, err
+		}
 
 		if err := state.apply(tx); err != nil {
 			return nil, err
