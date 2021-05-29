@@ -2,17 +2,23 @@ package database
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 )
+
+// used to store hash information after each transaction
+type Snapshot [32]byte
 
 // state is the database component responsible for encapsulating all business logic
 // it will know all user balances and who transfered TBB tokens to whom, and how many were transferred
 type State struct {
 	Balances  map[Account]uint
 	txMempool []Tx
+	snapshot  Snapshot
 
 	dbFile    *os.File
 	cacheFile *os.File
@@ -42,7 +48,7 @@ func NewStateFromDisk() (*State, error) {
 		return nil, err
 	}
 
-	cf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "state.json"), os.O_RDWR, 0600)
+	cf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "mvp_database", "database", "state.json"), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +58,7 @@ func NewStateFromDisk() (*State, error) {
 	state := &State{
 		Balances:  balances,
 		txMempool: make([]Tx, 0),
+		snapshot:  Snapshot{},
 		dbFile:    dbf,
 		cacheFile: cf,
 	}
@@ -72,6 +79,11 @@ func NewStateFromDisk() (*State, error) {
 		}
 	}
 
+	err = state.doSnapshot()
+	if err != nil {
+		return nil, err
+	}
+
 	return state, nil
 }
 
@@ -86,37 +98,51 @@ func (state *State) Add(tx Tx) error {
 	return nil
 }
 
+func (state *State) LatestSnapshot() Snapshot {
+	return state.snapshot
+}
+
 // Persisting transactions to disk
-func (state *State) Persist() error {
+func (state *State) Persist() (Snapshot, error) {
 	mempool := make([]Tx, len(state.txMempool))
 	copy(mempool, state.txMempool)
 
 	for i := 0; i < len(mempool); i++ {
 		txJson, err := json.Marshal(mempool[i])
 		if err != nil {
-			return err
+			return Snapshot{}, err
 		}
 
+		fmt.Printf("Persisting new TX to disk:\n")
+		fmt.Printf("\t%s\n", txJson)
 		if _, err := state.dbFile.Write(append(txJson, '\n')); err != nil {
-			return err
+			return Snapshot{}, err
 		}
+
+		err = state.doSnapshot()
+		if err != nil {
+			return Snapshot{}, err
+		}
+		fmt.Printf("New DB Snapshot: %x\n", state.snapshot)
+
 		state.txMempool = state.txMempool[1:]
 	}
 
 	balancesJson, err := json.Marshal(state.Balances)
 	if err != nil {
-		return err
+		return Snapshot{}, err
 	}
 
 	_, err = state.cacheFile.Write(balancesJson)
 	if err != nil {
-		return err
+		return Snapshot{}, err
 	}
 
-	return nil
+	return state.snapshot, nil
 }
 
 func (state *State) Close() {
+	state.cacheFile.Close()
 	state.dbFile.Close()
 }
 
@@ -134,6 +160,23 @@ func (state *State) apply(tx Tx) error {
 
 	state.Balances[tx.From] -= tx.Value
 	state.Balances[tx.To] += tx.Value
+
+	return nil
+}
+
+func (state *State) doSnapshot() error {
+	// Re-read the whole file from the first byte
+	_, err := state.dbFile.Seek(0, 0)
+	if err != nil {
+		return err
+	}
+
+	txsData, err := ioutil.ReadAll(state.dbFile)
+	if err != nil {
+		return err
+	}
+
+	state.snapshot = sha256.Sum256(txsData)
 
 	return nil
 }
