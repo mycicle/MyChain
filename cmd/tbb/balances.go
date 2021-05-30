@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	database "github.com/mycicle/MyChain/mvp_database/src"
+	database "github.com/mycicle/MyChain/blockchain/src"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ var balancesListCmd = &cobra.Command{
 		}
 		defer state.Close()
 
-		fmt.Printf("Accounts Balances at %x:\n", state.LatestSnapshot())
+		fmt.Printf("Accounts Balances at %x:\n", state.LatestBlockHash())
 		fmt.Println("-------------------")
 		fmt.Println("")
 

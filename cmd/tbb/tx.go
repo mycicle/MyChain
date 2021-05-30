@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	database "github.com/mycicle/MyChain/mvp_database/src"
+	database "github.com/mycicle/MyChain/blockchain/src"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +52,7 @@ func txAddCmd() *cobra.Command {
 			// defer means that at the end of this function execustion, execure the following statement
 			defer state.Close()
 
-			err = state.Add(tx)
+			err = state.AddTx(tx)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
