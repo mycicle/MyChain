@@ -8,6 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const flagDataDir = "datadir"
+
 func main() {
 	var tbbCmd = &cobra.Command{
 		Use:   "tbb",
@@ -25,6 +27,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func addDefaultRequiredFlags(cmd *cobra.Command) {
+	cmd.Flags().String(
+		flagDataDir,
+		"",
+		"Absolute path where all data will be / is stored",
+	)
+	cmd.MarkFlagRequired(flagDataDir)
 }
 
 func incorrectUsageErr() error {

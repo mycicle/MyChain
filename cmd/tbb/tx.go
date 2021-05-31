@@ -44,7 +44,8 @@ func txAddCmd() *cobra.Command {
 
 			tx := database.NewTx(fromAcc, toAcc, value, data)
 
-			state, err := database.NewStateFromDisk()
+			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			state, err := database.NewStateFromDisk(dataDir)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -80,5 +81,6 @@ func txAddCmd() *cobra.Command {
 
 	cmd.Flags().String(flagData, "", "Possible values: 'reward'")
 
+	addDefaultRequiredFlags(cmd)
 	return cmd
 }

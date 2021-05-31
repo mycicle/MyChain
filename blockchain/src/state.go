@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -21,15 +20,13 @@ type State struct {
 }
 
 // it is contstructed using the initial balances from the genesis.json file
-func NewStateFromDisk() (*State, error) {
-	// get cwd
-	cwd, err := os.Getwd()
+func NewStateFromDisk(dataDir string) (*State, error) {
+	err := initDataDirIfNotExists(dataDir)
 	if err != nil {
 		return nil, err
 	}
 
-	genFilePath := filepath.Join(cwd, "..", "MyChain", "blockchain", "database", "genesis.json")
-	gen, err := loadGenesis(genFilePath)
+	gen, err := loadGenesis(getGenesisJsonFilePath(dataDir))
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +36,12 @@ func NewStateFromDisk() (*State, error) {
 		balances[account] = balance
 	}
 
-	dbf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "blockchain", "database", "block.db"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+	dbf, err := os.OpenFile(getBlocksDbFilePath(dataDir), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return nil, err
 	}
 
-	cf, err := os.OpenFile(filepath.Join(cwd, "..", "MyChain", "blockchain", "database", "state.json"), os.O_RDWR|os.O_CREATE, 0600)
+	cf, err := os.OpenFile(getStateJsonFilePath(dataDir), os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
 		return nil, err
 	}
