@@ -1,6 +1,7 @@
 package database
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -51,4 +52,14 @@ func (b Block) Hash() (Hash, error) {
 	}
 
 	return sha256.Sum256(blockJson), nil
+}
+
+func (h Hash) Hex() string {
+	return hex.EncodeToString(h[:])
+}
+
+func (h Hash) IsEmpty() bool {
+	emptyHash := Hash{}
+
+	return bytes.Equal(emptyHash[:], h[:])
 }

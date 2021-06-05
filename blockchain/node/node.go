@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +12,14 @@ import (
 
 const DefaultIP = "127.0.0.1"
 const DefaultHTTPort = uint64(8080)
+const endpointStatus = "/node/status"
+
+const endpointSync = "/node/sync"
+const endpointSyncQueryKeyFromBlock = "fromBlock"
+
+const endpointAddPeer = "/node/peer"
+const endpointAddPeerQueryKeyIP = "ip"
+const endpointAddPeerQueryKeyPort = "port"
 
 type PeerNode struct {
 	IP          string `json:"ip"`
@@ -58,7 +67,7 @@ func NewPeerNode(ip string, port uint64, isBootstrap bool, connected bool) PeerN
 }
 
 func (n *Node) Run() error {
-	// ctx := context.Background()
+	ctx := context.Background()
 	fmt.Println(fmt.Sprintf("Listening on %s:%d", n.ip, n.port))
 
 	state, err := database.NewStateFromDisk(n.dataDir)
@@ -69,7 +78,7 @@ func (n *Node) Run() error {
 
 	n.state = state
 
-	// go n.sync(ctx)
+	go n.sync(ctx)
 
 	// GET endpoint to get the balances of everyone on the network
 	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
@@ -82,34 +91,28 @@ func (n *Node) Run() error {
 	})
 
 	//GET endpoint to get the status of the node
-	http.HandleFunc("/node/status", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(endpointStatus, func(w http.ResponseWriter, r *http.Request) {
 		statusHandler(w, r, n)
+	})
+
+	http.HandleFunc(endpointSync, func(w http.ResponseWriter, r *http.Request) {
+		syncHandler(w, r, n)
+	})
+
+	http.HandleFunc(endpointAddPeer, func(w http.ResponseWriter, r *http.Request) {
+		addPeerHandler(w, r, n)
 	})
 
 	return http.ListenAndServe(fmt.Sprintf(":%d", n.port), nil)
 }
 
-// Run() method loads the state from disk and then starts listening on the hardcoded port 8080
-// func Run(dataDir string) error {
-// 	state, err := database.NewStateFromDisk(dataDir)
-// 	if err != nil {
-// 		return err
-// 	}
+func (n *Node) AddPeer(peer PeerNode) {
+	n.knownPeers[peer.TcpAddress()] = peer
+}
 
-// 	defer state.Close()
-
-// 	// GET endpoint to get the balances of everyone on the network
-// 	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
-// 		listBalancesHandler(w, r, state)
-// 	})
-
-// 	// POST endpoint to add new transactions to the ledger
-// 	http.HandleFunc("/tx/add", func(w http.ResponseWriter, r *http.Request) {
-// 		txAddHandler(w, r, state)
-// 	})
-
-// 	return http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil)
-// }
+func (n *Node) RemovePeer(peer PeerNode) {
+	delete(n.knownPeers, peer.TcpAddress())
+}
 
 func writeRes(w http.ResponseWriter, content interface{}) {
 	contentJson, err := json.Marshal(content)
@@ -142,4 +145,14 @@ func readReq(r *http.Request, reqBody interface{}) error {
 	}
 
 	return nil
+}
+
+func (n *Node) IsKnownPeer(peer PeerNode) bool {
+	if peer.IP == n.ip && peer.Port == n.port {
+		return true
+	}
+
+	_, isKnownPeer := n.knownPeers[peer.TcpAddress()]
+
+	return isKnownPeer
 }

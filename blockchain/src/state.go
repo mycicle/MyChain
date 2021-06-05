@@ -139,6 +139,17 @@ func (s *State) AddBlock(b Block) (Hash, error) {
 	return blockHash, nil
 }
 
+func (s *State) AddBlocks(blocks []Block) error {
+	for _, b := range blocks {
+		_, err := s.AddBlock(b)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Adding new transactions to the mempool
 func (state *State) AddTx(tx Tx) error {
 	if err := state.apply(tx); err != nil {
