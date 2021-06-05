@@ -64,13 +64,18 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		}
 
 		blockFsJson := scanner.Bytes()
+
+		if len(blockFsJson) == 0 {
+			break
+		}
+
 		var blockFs BlockFS
 		err = json.Unmarshal(blockFsJson, &blockFs)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := state.applyBlock(blockFs.Value); err != nil {
+		if err := applyTXs(blockFs.Value.TXs, state); err != nil {
 			return nil, err
 		}
 
@@ -173,6 +178,33 @@ func (state *State) apply(tx Tx) error {
 
 	state.Balances[tx.From] -= tx.Value
 	state.Balances[tx.To] += tx.Value
+
+	return nil
+}
+
+func applyTXs(txs []Tx, s *State) error {
+	for _, tx := range txs {
+		err := applyTx(tx, s)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func applyTx(tx Tx, s *State) error {
+	if tx.IsReward() {
+		s.Balances[tx.To] += tx.Value
+		return nil
+	}
+
+	if tx.Value > s.Balances[tx.From] {
+		return fmt.Errorf("Invalid TX. Sender '%s' balance is %d TBB. TX cost is %d TBB", tx.From, s.Balances[tx.From], tx.Value)
+	}
+
+	s.Balances[tx.From] -= tx.Value
+	s.Balances[tx.To] += tx.Value
 
 	return nil
 }
