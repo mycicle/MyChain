@@ -1,0 +1,13 @@
+{
+  "body": {
+    "content": "ewoiZnJvbSI6ICJhbmRyZWoiLAoidG8iOiJiYWJheWFnYSIsCiJ2YWx1ZSI6MTAwCn0=",
+    "file": false,
+    "fileSize": false
+  },
+  "headers": {
+    "content-type": "application/json"
+  },
+  "method": "POST",
+  "title": "andrej-babayagaAdd",
+  "url": "localhost:8080/tx/add"
+}

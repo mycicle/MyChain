@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	database "github.com/mycicle/MyChain/blockchain/src"
 )
@@ -65,15 +66,14 @@ func txAddHandler(w http.ResponseWriter, r *http.Request, state *database.State)
 		req.Data,
 	)
 
-	// Add a new TX to the mempool
-	err = state.AddTx(tx)
-	if err != nil {
-		writeErrRes(w, err)
-		return
-	}
+	block := database.NewBlock(
+		state.LatestBlockHash(),
+		state.NextBlockNumber(),
+		uint64(time.Now().Unix()),
+		[]database.Tx{tx},
+	)
 
-	// Flush the mempool to the disk
-	hash, err := state.Persist()
+	hash, err := state.AddBlock(block)
 	if err != nil {
 		writeErrRes(w, err)
 		return
