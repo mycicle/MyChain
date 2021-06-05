@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mycicle/MyChain/blockchain/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +22,7 @@ func main() {
 	tbbCmd.AddCommand(versionCmd)
 	tbbCmd.AddCommand(balancesCmd())
 	tbbCmd.AddCommand(runCmd())
+	tbbCmd.AddCommand(migrateCmd())
 
 	err := tbbCmd.Execute()
 	if err != nil {
@@ -36,6 +38,15 @@ func addDefaultRequiredFlags(cmd *cobra.Command) {
 		"Absolute path where all data will be / is stored",
 	)
 	cmd.MarkFlagRequired(flagDataDir)
+}
+
+func getDataDirFromCmd(cmd *cobra.Command) (string, error) {
+	dataDir, err := cmd.Flags().GetString(flagDataDir)
+	if err != nil {
+		return fs.ExpandPath(dataDir), err
+	}
+
+	return fs.ExpandPath(dataDir), nil
 }
 
 func incorrectUsageErr() error {
