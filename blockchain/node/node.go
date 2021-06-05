@@ -9,36 +9,67 @@ import (
 	database "github.com/mycicle/MyChain/blockchain/src"
 )
 
-const httpPort = 8080
+const DefaultIP = "127.0.0.1"
+const DefaultHTTPort = uint64(8080)
 
-type ErrRes struct {
-	Error string `json:"error"`
+type PeerNode struct {
+	IP          string `json:"ip"`
+	Port        uint64 `json:"port"`
+	IsBootstrap bool   `json:"is_bootstrap"`
+
+	// Whenever my node has already established a connection, sync with this Peer
+	connected bool
 }
 
-type BalancesRes struct {
-	Hash     database.Hash             `json:"block_hash"`
-	Balances map[database.Account]uint `json:"balances"`
+func (pn PeerNode) TcpAddress() string {
+	return fmt.Sprintf("%s:%d", pn.IP, pn.Port)
 }
 
-type TxAddReq struct {
-	From  string `json:"from"`
-	To    string `json:"to"`
-	Value uint   `json:"value"`
-	Data  string `json:"data"`
+type Node struct {
+	dataDir string
+	ip      string
+	port    uint64
+
+	// To inject the State into HTTP handlers
+	state *database.State
+
+	knownPeers map[string]PeerNode
 }
 
-type TxAddRes struct {
-	Hash database.Hash `json:"block_hash"`
+func New(dataDir string, ip string, port uint64, bootstrap PeerNode) *Node {
+	knownPeers := make(map[string]PeerNode)
+	knownPeers[bootstrap.TcpAddress()] = bootstrap
+
+	return &Node{
+		dataDir:    dataDir,
+		ip:         ip,
+		port:       port,
+		knownPeers: knownPeers,
+	}
 }
 
-// Run() method loads the state from disk and then starts listening on the hardcoded port 8080
-func Run(dataDir string) error {
-	state, err := database.NewStateFromDisk(dataDir)
+func NewPeerNode(ip string, port uint64, isBootstrap bool, connected bool) PeerNode {
+	return PeerNode{
+		IP:          ip,
+		Port:        port,
+		IsBootstrap: isBootstrap,
+		connected:   connected,
+	}
+}
+
+func (n *Node) Run() error {
+	// ctx := context.Background()
+	fmt.Println(fmt.Sprintf("Listening on %s:%d", n.ip, n.port))
+
+	state, err := database.NewStateFromDisk(n.dataDir)
 	if err != nil {
 		return err
 	}
-
 	defer state.Close()
+
+	n.state = state
+
+	// go n.sync(ctx)
 
 	// GET endpoint to get the balances of everyone on the network
 	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
@@ -50,50 +81,35 @@ func Run(dataDir string) error {
 		txAddHandler(w, r, state)
 	})
 
-	return http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil)
-}
-
-func listBalancesHandler(w http.ResponseWriter, r *http.Request, state *database.State) {
-	writeRes(w, BalancesRes{
-		Hash:     state.LatestBlockHash(),
-		Balances: state.Balances,
-	})
-}
-
-func txAddHandler(w http.ResponseWriter, r *http.Request, state *database.State) {
-	req := TxAddReq{}
-	err := readReq(r, &req)
-	if err != nil {
-		writeErrRes(w, err)
-		return
-	}
-
-	tx := database.NewTx(
-		database.NewAccount(req.From),
-		database.NewAccount(req.To),
-		req.Value,
-		req.Data,
-	)
-
-	// Add a new TX to the mempool
-	err = state.AddTx(tx)
-	if err != nil {
-		writeErrRes(w, err)
-		return
-	}
-
-	// Flush the mempool to the disk
-	hash, err := state.Persist()
-	if err != nil {
-		writeErrRes(w, err)
-		return
-	}
-
-	writeRes(w, TxAddRes{
-		Hash: hash,
+	//GET endpoint to get the status of the node
+	http.HandleFunc("/node/status", func(w http.ResponseWriter, r *http.Request) {
+		statusHandler(w, r, n)
 	})
 
+	return http.ListenAndServe(fmt.Sprintf(":%d", n.port), nil)
 }
+
+// Run() method loads the state from disk and then starts listening on the hardcoded port 8080
+// func Run(dataDir string) error {
+// 	state, err := database.NewStateFromDisk(dataDir)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	defer state.Close()
+
+// 	// GET endpoint to get the balances of everyone on the network
+// 	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
+// 		listBalancesHandler(w, r, state)
+// 	})
+
+// 	// POST endpoint to add new transactions to the ledger
+// 	http.HandleFunc("/tx/add", func(w http.ResponseWriter, r *http.Request) {
+// 		txAddHandler(w, r, state)
+// 	})
+
+// 	return http.ListenAndServe(fmt.Sprintf(":%d", httpPort), nil)
+// }
 
 func writeRes(w http.ResponseWriter, content interface{}) {
 	contentJson, err := json.Marshal(content)
